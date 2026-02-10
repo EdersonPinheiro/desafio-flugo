@@ -114,7 +114,7 @@ const CollaboratorForm: React.FC = () => {
             </Breadcrumbs>
 
 
-            <Box sx={{ position: 'relative', mb: 6 }}>
+            <Box sx={{ position: 'relative', mb: 6, display: { xs: 'block', md: 'block' } }}>
                 <LinearProgress
                     variant="determinate"
                     value={activeStep === steps.length ? 100 : (activeStep === 0 ? 0 : 50)}
@@ -142,9 +142,9 @@ const CollaboratorForm: React.FC = () => {
                 </Typography>
             </Box>
 
-            <Box sx={{ display: 'flex', gap: 8 }}>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: { xs: 4, md: 8 } }}>
 
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4, position: 'relative', minWidth: 200 }}>
+                <Box sx={{ display: { xs: 'none', md: 'flex' }, flexDirection: 'column', gap: 4, position: 'relative', minWidth: 200 }}>
                     {steps.map((step, index) => (
                         <Box key={step.label} sx={{ display: 'flex', alignItems: 'center', gap: 2, zIndex: 1 }}>
                             <Box
@@ -196,7 +196,7 @@ const CollaboratorForm: React.FC = () => {
                         {steps[Math.min(activeStep, steps.length - 1)].title}
                     </Typography>
 
-                    <Box sx={{ maxWidth: 640 }}>
+                    <Box sx={{ maxWidth: 640, width: '100%' }}>
                         {activeStep === 0 && (
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                                 <Controller

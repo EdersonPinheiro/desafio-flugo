@@ -12,7 +12,8 @@ import {
     TableRow,
     Avatar,
     Chip,
-    CircularProgress
+    CircularProgress,
+    Fab
 } from '@mui/material';
 import { Add as AddIcon, ArrowDownward as ArrowDownwardIcon, ArrowUpward as ArrowUpwardIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -75,8 +76,8 @@ const CollaboratorList: React.FC = () => {
 
     return (
         <Box sx={{ width: '100%', mt: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 10 }}>
-                <Typography variant="h4" color="#101828" sx={{ fontSize: '1.875rem', fontWeight: 700 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: { xs: 4, md: 10 } }}>
+                <Typography variant="h4" color="#101828" sx={{ fontSize: { xs: '1.5rem', md: '1.875rem' }, fontWeight: 700 }}>
                     Colaboradores
                 </Typography>
                 <Button
@@ -90,12 +91,30 @@ const CollaboratorList: React.FC = () => {
                         fontSize: '0.9375rem',
                         bgcolor: '#00C247',
                         '&:hover': { bgcolor: '#00A83D' },
-                        boxShadow: '0px 1px 2px rgba(16, 24, 40, 0.05)'
+                        boxShadow: '0px 1px 2px rgba(16, 24, 40, 0.05)',
+                        display: { xs: 'none', sm: 'flex' }
                     }}
                 >
                     Novo Colaborador
                 </Button>
             </Box>
+
+            <Fab
+                color="primary"
+                aria-label="add"
+                onClick={() => navigate('/new')}
+                sx={{
+                    position: 'fixed',
+                    bottom: 16,
+                    right: 16,
+                    bgcolor: '#00C247',
+                    '&:hover': { bgcolor: '#00A83D' },
+                    display: { xs: 'flex', sm: 'none' },
+                    zIndex: 1000
+                }}
+            >
+                <AddIcon />
+            </Fab>
 
             <TableContainer
                 component={Paper}
@@ -103,10 +122,10 @@ const CollaboratorList: React.FC = () => {
                     boxShadow: '0px 4px 6px -2px rgba(16, 24, 40, 0.03), 0px 12px 16px -4px rgba(16, 24, 40, 0.08)',
                     borderRadius: '16px',
                     border: '1px solid #EAECF0',
-                    overflow: 'hidden'
+                    overflowX: 'auto'
                 }}
             >
-                <Table>
+                <Table sx={{ minWidth: 600 }}>
                     <TableHead>
                         <TableRow sx={{ bgcolor: '#F9FAFB' }}>
                             <TableCell

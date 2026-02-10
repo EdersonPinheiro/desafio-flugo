@@ -5,26 +5,18 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 import logo from '../assets/logo.png';
 
-const drawerWidth = 300;
+interface SidebarProps {
+    mobileOpen: boolean;
+    onClose: () => void;
+    drawerWidth: number;
+}
 
-const Sidebar: React.FC = () => {
+const Sidebar: React.FC<SidebarProps> = ({ mobileOpen, onClose, drawerWidth }) => {
     const location = useLocation();
     const navigate = useNavigate();
 
-    return (
-        <Drawer
-            variant="permanent"
-            sx={{
-                width: drawerWidth,
-                flexShrink: 0,
-                [`& .MuiDrawer-paper`]: {
-                    width: drawerWidth,
-                    boxSizing: 'border-box',
-                    borderRight: '1px dashed #E0E0E0',
-                    bgcolor: '#FFFFFF'
-                },
-            }}
-        >
+    const drawerContent = (
+        <>
             <Box sx={{ pt: 3, px: 3, display: 'flex', alignItems: 'center', mb: -0.5 }}>
                 <Box
                     component="img"
@@ -38,7 +30,10 @@ const Sidebar: React.FC = () => {
                 <ListItem disablePadding>
                     <ListItemButton
                         selected={location.pathname === '/' || location.pathname.startsWith('/new')}
-                        onClick={() => navigate('/')}
+                        onClick={() => {
+                            navigate('/');
+                            onClose();
+                        }}
                         sx={{
                             borderRadius: '8px',
                             py: 1,
@@ -84,7 +79,44 @@ const Sidebar: React.FC = () => {
                     </ListItemButton>
                 </ListItem>
             </List>
-        </Drawer>
+        </>
+    );
+
+    return (
+        <Box
+            component="nav"
+            sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
+        >
+            <Drawer
+                variant="temporary"
+                open={mobileOpen}
+                onClose={onClose}
+                ModalProps={{
+                    keepMounted: true,
+                }}
+                sx={{
+                    display: { xs: 'block', sm: 'none' },
+                    '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+                }}
+            >
+                {drawerContent}
+            </Drawer>
+            <Drawer
+                variant="permanent"
+                sx={{
+                    display: { xs: 'none', sm: 'block' },
+                    '& .MuiDrawer-paper': {
+                        boxSizing: 'border-box',
+                        width: drawerWidth,
+                        borderRight: '1px dashed #E0E0E0',
+                        bgcolor: '#FFFFFF'
+                    },
+                }}
+                open
+            >
+                {drawerContent}
+            </Drawer>
+        </Box>
     );
 };
 
