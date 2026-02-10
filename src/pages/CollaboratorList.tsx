@@ -163,7 +163,12 @@ const CollaboratorList: React.FC = () => {
                     </TableHead>
                     <TableBody>
                         {sortedCollaborators.map((collaborator) => (
-                            <TableRow key={collaborator.id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                            <TableRow
+                                key={collaborator.id}
+                                hover
+                                sx={{ '&:last-child td, &:last-child th': { border: 0 }, cursor: 'pointer' }}
+                                onClick={() => navigate(`/edit/${collaborator.id}`)}
+                            >
                                 <TableCell>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                                         <Avatar

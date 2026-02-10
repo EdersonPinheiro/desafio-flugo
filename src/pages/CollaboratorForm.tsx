@@ -10,13 +10,14 @@ import {
     Breadcrumbs,
     Link,
     LinearProgress,
+    Avatar,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { Check as CheckIcon } from '@mui/icons-material';
-import { saveCollaborator, getRandomAvatar } from '../services/collaboratorService';
+import { saveCollaborator, getRandomAvatar, getCollaborator, updateCollaborator } from '../services/collaboratorService';
 import type { Collaborator } from '../types/collaborator';
 
 const steps = [
@@ -28,6 +29,7 @@ const schema = [
     yup.object({
         name: yup.string().required('Nome é obrigatório'),
         email: yup.string().email('E-mail inválido').required('E-mail é obrigatório'),
+
         active: yup.boolean().default(true),
     }),
     yup.object({
@@ -41,23 +43,42 @@ interface CollaboratorFormData {
     email: string;
     active: boolean;
     department: string;
+
 }
 
 const CollaboratorForm: React.FC = () => {
     const [activeStep, setActiveStep] = useState(0);
+    const { id } = useParams();
     const navigate = useNavigate();
     const currentSchema = schema[activeStep];
 
-    const { control, getValues, formState: { errors }, trigger } = useForm<CollaboratorFormData>({
+    const { control, getValues, setValue, watch, formState: { errors }, trigger } = useForm<CollaboratorFormData>({
         resolver: yupResolver(currentSchema as any),
         mode: 'onChange',
         defaultValues: {
             name: '',
             email: '',
+
             active: true,
             department: '',
         }
     });
+
+    React.useEffect(() => {
+        if (id) {
+            const fetchCollaborator = async () => {
+                const data = await getCollaborator(id);
+                if (data) {
+                    setValue('name', data.name);
+                    setValue('email', data.email);
+                    setValue('active', data.status === 'active');
+                    setValue('department', data.department);
+
+                }
+            };
+            fetchCollaborator();
+        }
+    }, [id, setValue]);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -67,16 +88,29 @@ const CollaboratorForm: React.FC = () => {
             if (activeStep === steps.length - 1) {
                 try {
                     setIsSubmitting(true);
-                    const { active, ...data } = getValues();
-                    const newCollaborator: Omit<Collaborator, 'id'> = {
-                        ...data,
-                        status: active ? 'active' : 'inactive',
-                        avatar: getRandomAvatar(data.name),
-                        admissionDate: new Date().toISOString().split('T')[0],
-                        position: 'Colaborador',
-                        cpf: '', phone: '', cep: '', street: '', number: '', neighborhood: '', city: '', state: ''
-                    };
-                    await saveCollaborator(newCollaborator);
+
+                    const formData = getValues();
+                    const { active, ...data } = formData;
+
+                    const statusVal = active ? 'active' : 'inactive';
+
+                    if (id) {
+                        const updatedData: Partial<Collaborator> = {
+                            ...data,
+                            status: statusVal,
+                        };
+                        updateCollaborator(id, updatedData).catch(err => console.error("Update failed in bg", err));
+                    } else {
+                        const newCollaborator: Omit<Collaborator, 'id'> = {
+                            ...data,
+                            position: 'Colaborador',
+                            status: statusVal,
+                            avatar: getRandomAvatar(data.name),
+                            admissionDate: new Date().toISOString().split('T')[0],
+                            cpf: '', phone: '', cep: '', street: '', number: '', neighborhood: '', city: '', state: ''
+                        };
+                        saveCollaborator(newCollaborator).catch(err => console.error("Save failed in bg", err));
+                    }
 
                     setActiveStep(steps.length);
 
@@ -109,14 +143,14 @@ const CollaboratorForm: React.FC = () => {
                     Colaboradores
                 </Link>
                 <Typography color="#98A2B3" sx={{ fontSize: '14px', fontWeight: 600 }}>
-                    Cadastrar Colaborador
+                    {id ? 'Editar Colaborador' : 'Cadastrar Colaborador'}
                 </Typography>
             </Breadcrumbs>
 
 
             <Box sx={{ position: 'relative', mb: 6, display: { xs: 'block', md: 'block' } }}>
                 <LinearProgress
-                    variant="determinate"
+                    variant={isSubmitting ? "indeterminate" : "determinate"}
                     value={activeStep === steps.length ? 100 : (activeStep === 0 ? 0 : 50)}
                     sx={{
                         height: 4,
@@ -198,72 +232,80 @@ const CollaboratorForm: React.FC = () => {
 
                     <Box sx={{ maxWidth: 640, width: '100%' }}>
                         {activeStep === 0 && (
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                <Controller
-                                    name="name"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <TextField
-                                            {...field}
-                                            label="Título"
-                                            placeholder="João da Silva"
-                                            fullWidth
-                                            error={!!errors.name}
-                                            helperText={errors.name?.message}
-                                            variant="outlined"
-                                            sx={{
-                                                '& .MuiOutlinedInput-root': {
-                                                    borderRadius: '12px',
-                                                    '&.Mui-focused fieldset': { borderColor: '#00C247' },
-                                                },
-                                                '& .MuiInputLabel-root.Mui-focused': { color: '#00C247' },
-                                            }}
-                                        />
-                                    )}
-                                />
-                                <Controller
-                                    name="email"
-                                    control={control}
-                                    render={({ field }) => (
-                                        <TextField
-                                            {...field}
-                                            label="E-mail"
-                                            placeholder="e.g. john@gmail.com"
-                                            fullWidth
-                                            error={!!errors.email}
-                                            helperText={errors.email?.message}
-                                            variant="outlined"
-                                            sx={{
-                                                '& .MuiOutlinedInput-root': {
-                                                    borderRadius: '12px',
-                                                    '&.Mui-focused fieldset': { borderColor: '#00C247' },
-                                                },
-                                                '& .MuiInputLabel-root.Mui-focused': { color: '#00C247' },
-                                            }}
-                                        />
-                                    )}
-                                />
-                                <Box sx={{ mt: 1 }}>
+                            <Box sx={{ display: 'flex', gap: 4, flexDirection: { xs: 'column', sm: 'row' } }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1 }}>
+                                    <Avatar
+                                        src={getRandomAvatar(watch('name'))}
+                                        sx={{ width: 100, height: 100, bgcolor: '#F2F4F7' }}
+                                    />
+                                </Box>
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
                                     <Controller
-                                        name="active"
+                                        name="name"
                                         control={control}
                                         render={({ field }) => (
-                                            <FormControlLabel
-                                                control={
-                                                    <Switch
-                                                        {...field}
-                                                        checked={field.value}
-                                                        color="success"
-                                                        sx={{
-                                                            '& .MuiSwitch-switchBase.Mui-checked': { color: '#00C247' },
-                                                            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#00C247' },
-                                                        }}
-                                                    />
-                                                }
-                                                label={<Typography sx={{ fontSize: '14px', color: '#475467' }}>Ativar ao criar</Typography>}
+                                            <TextField
+                                                {...field}
+                                                label="Título"
+                                                placeholder="João da Silva"
+                                                fullWidth
+                                                error={!!errors.name}
+                                                helperText={errors.name?.message}
+                                                variant="outlined"
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: '12px',
+                                                        '&.Mui-focused fieldset': { borderColor: '#00C247' },
+                                                    },
+                                                    '& .MuiInputLabel-root.Mui-focused': { color: '#00C247' },
+                                                }}
                                             />
                                         )}
                                     />
+                                    <Controller
+                                        name="email"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <TextField
+                                                {...field}
+                                                label="E-mail"
+                                                placeholder="e.g. john@gmail.com"
+                                                fullWidth
+                                                error={!!errors.email}
+                                                helperText={errors.email?.message}
+                                                variant="outlined"
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: '12px',
+                                                        '&.Mui-focused fieldset': { borderColor: '#00C247' },
+                                                    },
+                                                    '& .MuiInputLabel-root.Mui-focused': { color: '#00C247' },
+                                                }}
+                                            />
+                                        )}
+                                    />
+                                    <Box sx={{ mt: 1 }}>
+                                        <Controller
+                                            name="active"
+                                            control={control}
+                                            render={({ field }) => (
+                                                <FormControlLabel
+                                                    control={
+                                                        <Switch
+                                                            {...field}
+                                                            checked={field.value}
+                                                            color="success"
+                                                            sx={{
+                                                                '& .MuiSwitch-switchBase.Mui-checked': { color: '#00C247' },
+                                                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#00C247' },
+                                                            }}
+                                                        />
+                                                    }
+                                                    label={<Typography sx={{ fontSize: '14px', color: '#475467' }}>{id ? 'Ativo' : 'Ativar ao criar'}</Typography>}
+                                                />
+                                            )}
+                                        />
+                                    </Box>
                                 </Box>
                             </Box>
                         )}

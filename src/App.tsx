@@ -13,6 +13,7 @@ function App() {
           <Routes>
             <Route path="/" element={<CollaboratorList />} />
             <Route path="/new" element={<CollaboratorForm />} />
+            <Route path="/edit/:id" element={<CollaboratorForm />} />
           </Routes>
         </Layout>
       </Router>
