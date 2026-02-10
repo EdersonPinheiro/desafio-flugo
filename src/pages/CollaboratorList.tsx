@@ -18,7 +18,7 @@ import {
 import { Add as AddIcon, ArrowDownward as ArrowDownwardIcon, ArrowUpward as ArrowUpwardIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import type { Collaborator } from '../types/collaborator';
-import { subscribeToCollaborators } from '../services/collaboratorService';
+import { subscribeToCollaborators, getRandomAvatar } from '../services/collaboratorService';
 
 const CollaboratorList: React.FC = () => {
     const navigate = useNavigate();
@@ -45,8 +45,6 @@ const CollaboratorList: React.FC = () => {
             const valA = String(a[orderByField] || '').toLowerCase();
             const valB = String(b[orderByField] || '').toLowerCase();
 
-            // Seta para baixo (desc) = A-Z (Ativos primeiro / A..Z)
-            // Seta para cima (asc) = Z-A (Inativos primeiro / Z..A)
             if (valA < valB) return orderDirection === 'desc' ? -1 : 1;
             if (valA > valB) return orderDirection === 'desc' ? 1 : -1;
             return 0;
@@ -60,7 +58,7 @@ const CollaboratorList: React.FC = () => {
     };
 
     const renderSortIcon = (field: keyof Collaborator) => {
-        if (orderByField !== field) return <ArrowDownwardIcon sx={{ fontSize: 14, color: '#D0D5DD' }} />; // Cor inativa
+        if (orderByField !== field) return <ArrowDownwardIcon sx={{ fontSize: 14, color: '#D0D5DD' }} />;
         return orderDirection === 'asc'
             ? <ArrowUpwardIcon sx={{ fontSize: 14, color: '#667085' }} />
             : <ArrowDownwardIcon sx={{ fontSize: 14, color: '#667085' }} />;
@@ -92,7 +90,7 @@ const CollaboratorList: React.FC = () => {
                         bgcolor: '#00C247',
                         '&:hover': { bgcolor: '#00A83D' },
                         boxShadow: '0px 1px 2px rgba(16, 24, 40, 0.05)',
-                        display: { xs: 'none', sm: 'flex' }
+                        display: { xs: 'none', md: 'flex' }
                     }}
                 >
                     Novo Colaborador
@@ -109,7 +107,7 @@ const CollaboratorList: React.FC = () => {
                     right: 16,
                     bgcolor: '#00C247',
                     '&:hover': { bgcolor: '#00A83D' },
-                    display: { xs: 'flex', sm: 'none' },
+                    display: { xs: 'flex', md: 'none' },
                     zIndex: 1000
                 }}
             >
@@ -169,7 +167,7 @@ const CollaboratorList: React.FC = () => {
                                 <TableCell>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                                         <Avatar
-                                            src={collaborator.avatar || `https://avatar.iran.liara.run/public?username=${collaborator.name}`}
+                                            src={collaborator.avatar || getRandomAvatar(collaborator.name)}
                                             sx={{ width: 40, height: 40, bgcolor: '#F2F4F7' }}
                                         />
                                         <Typography variant="body2" sx={{ fontWeight: 600, color: '#101828' }}>

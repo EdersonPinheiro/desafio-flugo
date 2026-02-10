@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 
 import { IconButton } from '@mui/material';
 import { Menu as MenuIcon } from '@mui/icons-material';
+import { getRandomAvatar } from '../services/collaboratorService';
 
 const drawerWidth = 300;
 
@@ -52,7 +53,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
                     <Box
                         component="img"
-                        src="https://api.dicebear.com/9.x/avataaars/svg?seed=Felix"
+                        src={getRandomAvatar("Felix")}
                         alt="User Profile"
                         sx={{
                             width: 48,
