@@ -1,55 +1,54 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Box,
     Typography,
     Button,
-    Paper,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Avatar,
-    Chip,
     CircularProgress,
-    Fab
+    Fab,
 } from '@mui/material';
-import { Add as AddIcon, ArrowDownward as ArrowDownwardIcon, ArrowUpward as ArrowUpwardIcon } from '@mui/icons-material';
+import { Add as AddIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import type { Collaborator } from '../types/collaborator';
-import { subscribeToCollaborators, getRandomAvatar } from '../services/collaboratorService';
+import { subscribeToCollaborators, deleteCollaborator, deleteCollaborators } from '../services/collaboratorService';
+import { subscribeToDepartments } from '../services/departmentService';
+import type { Department } from '../types/department';
+import { CollaboratorFilter } from '../components/CollaboratorFilter';
+import { CollaboratorTable } from '../components/CollaboratorTable';
 
 const CollaboratorList: React.FC = () => {
     const navigate = useNavigate();
-    const [loading, setLoading] = React.useState(true);
-    const [collaborators, setCollaborators] = React.useState<Collaborator[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+    const [departments, setDepartments] = useState<Department[]>([]);
 
-    const [orderByField, setOrderByField] = React.useState<keyof Collaborator>('name');
-    const [orderDirection, setOrderDirection] = React.useState<'asc' | 'desc'>('asc');
+    const [orderByField, setOrderByField] = useState<keyof Collaborator>('name');
+    const [orderDirection, setOrderDirection] = useState<'asc' | 'desc'>('asc');
 
-    React.useEffect(() => {
+    const [filters, setFilters] = useState({
+        name: '',
+        email: '',
+        departmentId: ''
+    });
+
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+    useEffect(() => {
         setLoading(true);
 
-        const unsubscribe = subscribeToCollaborators((data) => {
+        const unsubscribeCollabs = subscribeToCollaborators((data) => {
             setCollaborators(data);
             setLoading(false);
         });
 
-        return () => unsubscribe();
-    }, []);
-
-
-    const sortedCollaborators = React.useMemo(() => {
-        return [...collaborators].sort((a, b) => {
-            const valA = String(a[orderByField] || '').toLowerCase();
-            const valB = String(b[orderByField] || '').toLowerCase();
-
-            if (valA < valB) return orderDirection === 'desc' ? -1 : 1;
-            if (valA > valB) return orderDirection === 'desc' ? 1 : -1;
-            return 0;
+        const unsubscribeDepts = subscribeToDepartments((data) => {
+            setDepartments(data);
         });
-    }, [collaborators, orderByField, orderDirection]);
+
+        return () => {
+            unsubscribeCollabs();
+            unsubscribeDepts();
+        };
+    }, []);
 
     const handleSort = (field: keyof Collaborator) => {
         const isAsc = orderByField === field && orderDirection === 'asc';
@@ -57,14 +56,78 @@ const CollaboratorList: React.FC = () => {
         setOrderByField(field);
     };
 
-    const renderSortIcon = (field: keyof Collaborator) => {
-        if (orderByField !== field) return <ArrowDownwardIcon sx={{ fontSize: 14, color: '#D0D5DD' }} />;
-        return orderDirection === 'asc'
-            ? <ArrowUpwardIcon sx={{ fontSize: 14, color: '#667085' }} />
-            : <ArrowDownwardIcon sx={{ fontSize: 14, color: '#667085' }} />;
+    const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (event.target.checked) {
+            setSelectedIds(filteredCollaborators.map(c => c.id!).filter(Boolean));
+        } else {
+            setSelectedIds([]);
+        }
     };
 
-    if (loading) {
+    const handleSelectOne = (id: string) => {
+        const selectedIndex = selectedIds.indexOf(id);
+        let newSelected: string[] = [];
+
+        if (selectedIndex === -1) {
+            newSelected = newSelected.concat(selectedIds, id);
+        } else if (selectedIndex === 0) {
+            newSelected = newSelected.concat(selectedIds.slice(1));
+        } else if (selectedIndex === selectedIds.length - 1) {
+            newSelected = newSelected.concat(selectedIds.slice(0, -1));
+        } else if (selectedIndex > 0) {
+            newSelected = newSelected.concat(
+                selectedIds.slice(0, selectedIndex),
+                selectedIds.slice(selectedIndex + 1),
+            );
+        }
+        setSelectedIds(newSelected);
+    };
+
+    const handleDelete = async (id: string) => {
+        if (window.confirm('Tem certeza que deseja excluir este colaborador?')) {
+            try {
+                await deleteCollaborator(id);
+                setSelectedIds(prev => prev.filter(sid => sid !== id));
+            } catch (error) {
+                console.error("Failed to delete", error);
+                alert("Erro ao excluir");
+            }
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        if (window.confirm(`Tem certeza que deseja excluir ${selectedIds.length} colaboradores?`)) {
+            try {
+                await deleteCollaborators(selectedIds);
+                setSelectedIds([]);
+            } catch (error) {
+                console.error("Failed to bulk delete", error);
+                alert("Erro ao excluir em massa");
+            }
+        }
+    };
+
+    const filteredCollaborators = useMemo(() => {
+        return collaborators.filter(c => {
+            const matchesName = c.name.toLowerCase().includes(filters.name.toLowerCase());
+            const matchesEmail = c.email.toLowerCase().includes(filters.email.toLowerCase());
+            const matchesDept = filters.departmentId ? c.departmentId === filters.departmentId : true;
+            return matchesName && matchesEmail && matchesDept;
+        });
+    }, [collaborators, filters]);
+
+    const sortedCollaborators = useMemo(() => {
+        return [...filteredCollaborators].sort((a, b) => {
+            const valA = String(a[orderByField] || '').toLowerCase();
+            const valB = String(b[orderByField] || '').toLowerCase();
+
+            if (valA < valB) return orderDirection === 'desc' ? -1 : 1;
+            if (valA > valB) return orderDirection === 'desc' ? 1 : -1;
+            return 0;
+        });
+    }, [filteredCollaborators, orderByField, orderDirection]);
+
+    if (loading && collaborators.length === 0) {
         return (
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: '400px' }}>
                 <CircularProgress sx={{ color: '#00C247' }} />
@@ -74,7 +137,7 @@ const CollaboratorList: React.FC = () => {
 
     return (
         <Box sx={{ width: '100%', mt: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: { xs: 4, md: 10 } }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
                 <Typography variant="h4" color="#101828" sx={{ fontSize: { xs: '1.5rem', md: '1.875rem' }, fontWeight: 700 }}>
                     Colaboradores
                 </Typography>
@@ -97,6 +160,14 @@ const CollaboratorList: React.FC = () => {
                 </Button>
             </Box>
 
+            <CollaboratorFilter
+                filters={filters}
+                setFilters={setFilters}
+                departments={departments}
+                selectedCount={selectedIds.length}
+                onBulkDelete={handleBulkDelete}
+            />
+
             <Fab
                 color="primary"
                 aria-label="add"
@@ -114,102 +185,17 @@ const CollaboratorList: React.FC = () => {
                 <AddIcon />
             </Fab>
 
-            <TableContainer
-                component={Paper}
-                sx={{
-                    boxShadow: '0px 4px 6px -2px rgba(16, 24, 40, 0.03), 0px 12px 16px -4px rgba(16, 24, 40, 0.08)',
-                    borderRadius: '16px',
-                    border: '1px solid #EAECF0',
-                    overflowX: 'auto'
-                }}
-            >
-                <Table sx={{ minWidth: 600 }}>
-                    <TableHead>
-                        <TableRow sx={{ bgcolor: '#F9FAFB' }}>
-                            <TableCell
-                                onClick={() => handleSort('name')}
-                                sx={{ color: '#667085', fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer', userSelect: 'none' }}
-                            >
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    Nome {renderSortIcon('name')}
-                                </Box>
-                            </TableCell>
-                            <TableCell
-                                onClick={() => handleSort('email')}
-                                sx={{ color: '#667085', fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer', userSelect: 'none' }}
-                            >
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    Email {renderSortIcon('email')}
-                                </Box>
-                            </TableCell>
-                            <TableCell
-                                onClick={() => handleSort('department')}
-                                sx={{ color: '#667085', fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer', userSelect: 'none' }}
-                            >
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                    Departamento {renderSortIcon('department')}
-                                </Box>
-                            </TableCell>
-                            <TableCell
-                                align="right"
-                                onClick={() => handleSort('status')}
-                                sx={{ color: '#667085', fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer', userSelect: 'none' }}
-                            >
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
-                                    Status {renderSortIcon('status')}
-                                </Box>
-                            </TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {sortedCollaborators.map((collaborator) => (
-                            <TableRow
-                                key={collaborator.id}
-                                hover
-                                sx={{ '&:last-child td, &:last-child th': { border: 0 }, cursor: 'pointer' }}
-                                onClick={() => navigate(`/edit/${collaborator.id}`)}
-                            >
-                                <TableCell>
-                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                        <Avatar
-                                            src={collaborator.avatar || getRandomAvatar(collaborator.name)}
-                                            sx={{ width: 40, height: 40, bgcolor: '#F2F4F7' }}
-                                        />
-                                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#101828' }}>
-                                            {collaborator.name}
-                                        </Typography>
-                                    </Box>
-                                </TableCell>
-                                <TableCell>
-                                    <Typography variant="body2" color="#667085">
-                                        {collaborator.email}
-                                    </Typography>
-                                </TableCell>
-                                <TableCell>
-                                    <Typography variant="body2" color="#667085">
-                                        {collaborator.department}
-                                    </Typography>
-                                </TableCell>
-                                <TableCell align="right">
-                                    <Chip
-                                        label={collaborator.status === 'active' ? 'Ativo' : 'Inativo'}
-                                        size="small"
-                                        sx={{
-                                            borderRadius: '16px',
-                                            fontWeight: 600,
-                                            fontSize: '0.75rem',
-                                            height: '24px',
-                                            bgcolor: collaborator.status === 'active' ? '#ECFDF3' : '#FEF3F2',
-                                            color: collaborator.status === 'active' ? '#027A48' : '#B42318',
-                                            '& .MuiChip-label': { px: 1.5 }
-                                        }}
-                                    />
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+            <CollaboratorTable
+                collaborators={sortedCollaborators}
+                selectedIds={selectedIds}
+                onSelectAll={handleSelectAll}
+                onSelectOne={handleSelectOne}
+                onSort={handleSort}
+                orderByField={orderByField}
+                orderDirection={orderDirection}
+                onDelete={handleDelete}
+                onEdit={(id) => navigate(`/edit/${id}`, { state: { collaborator: collaborators.find(c => c.id === id) } })}
+            />
         </Box>
     );
 };

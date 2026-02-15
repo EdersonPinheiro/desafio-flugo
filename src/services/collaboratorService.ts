@@ -1,4 +1,4 @@
-import { collection, doc, setDoc, query, orderBy, onSnapshot, getDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, query, orderBy, onSnapshot, getDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import type { Collaborator } from '../types/collaborator';
 
@@ -55,12 +55,37 @@ export const getCollaborator = async (id: string): Promise<Collaborator | null> 
 export const updateCollaborator = async (id: string, collaborator: Partial<Collaborator>): Promise<void> => {
     try {
         const docRef = doc(db, COLLECTION_NAME, id);
-        await setDoc(docRef, collaborator, { merge: true });
+        setDoc(docRef, collaborator, { merge: true }).catch(err => {
+            console.error("Error updating collaborator:", err);
+        });
     } catch (error) {
         console.error("Error updating document: ", error);
         throw error;
     }
 };
+
+export const deleteCollaborator = async (id: string): Promise<void> => {
+    try {
+        await deleteDoc(doc(db, COLLECTION_NAME, id));
+    } catch (error) {
+        console.error("Error deleting document: ", error);
+        throw error;
+    }
+};
+
+export const deleteCollaborators = async (ids: string[]): Promise<void> => {
+    try {
+        const batch = writeBatch(db);
+        ids.forEach(id => {
+            const docRef = doc(db, COLLECTION_NAME, id);
+            batch.delete(docRef);
+        });
+        await batch.commit();
+    } catch (error) {
+        console.error("Error deleting documents: ", error);
+        throw error;
+    }
+}
 
 const AVATAR_API = 'https://api.dicebear.com/9.x/notionists/svg';
 

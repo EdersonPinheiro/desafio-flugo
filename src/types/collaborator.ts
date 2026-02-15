@@ -11,9 +11,15 @@ export interface Collaborator {
   neighborhood: string;
   city: string;
   state: string;
-  position: string;
-  department: string;
+  jobTitle: string;
+  departmentId: string;
+  department?: string;
+  departmentName?: string;
   admissionDate: string;
+  level: 'junior' | 'pleno' | 'senior' | 'manager';
+  managerId?: string;
+  managerName?: string;
+  baseSalary: number;
   status: 'active' | 'inactive';
   avatar?: string;
 }

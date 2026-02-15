@@ -1,4 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useForm, Controller } from 'react-hook-form';
+import { yupResolver } from '@hookform/resolvers/yup';
+import * as yup from 'yup';
+import { Check as CheckIcon } from '@mui/icons-material';
+import { saveCollaborator, getRandomAvatar, getCollaborator, updateCollaborator, subscribeToCollaborators } from '../services/collaboratorService';
+import { subscribeToDepartments } from '../services/departmentService';
+import type { Collaborator } from '../types/collaborator';
+import type { Department } from '../types/department';
 import {
     Box,
     Typography,
@@ -12,13 +21,7 @@ import {
     LinearProgress,
     Avatar,
 } from '@mui/material';
-import { useNavigate, useParams } from 'react-router-dom';
-import { useForm, Controller } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import * as yup from 'yup';
-import { Check as CheckIcon } from '@mui/icons-material';
-import { saveCollaborator, getRandomAvatar, getCollaborator, updateCollaborator } from '../services/collaboratorService';
-import type { Collaborator } from '../types/collaborator';
+
 
 const steps = [
     { label: 'Infos Básicas', title: 'Informações Básicas' },
@@ -29,28 +32,41 @@ const schema = [
     yup.object({
         name: yup.string().required('Nome é obrigatório'),
         email: yup.string().email('E-mail inválido').required('E-mail é obrigatório'),
-
         active: yup.boolean().default(true),
     }),
     yup.object({
-        department: yup.string().required('Departamento é obrigatório'),
+        departmentId: yup.string().required('Departamento é obrigatório'),
+        jobTitle: yup.string().required('Cargo é obrigatório'),
+        admissionDate: yup.string().required('Data de admissão é obrigatória'),
+        level: yup.string().oneOf(['junior', 'pleno', 'senior', 'manager']).required('Nível é obrigatório'),
+        managerId: yup.string().optional(),
+        baseSalary: yup.number().typeError('Salário deve ser um número').required('Salário base é obrigatório'),
     }),
 ];
-
 
 interface CollaboratorFormData {
     name: string;
     email: string;
     active: boolean;
-    department: string;
 
+
+    departmentId: string;
+    jobTitle: string;
+    admissionDate: string;
+    level: 'junior' | 'pleno' | 'senior' | 'manager';
+    managerId?: string;
+    baseSalary: number;
 }
 
 const CollaboratorForm: React.FC = () => {
     const [activeStep, setActiveStep] = useState(0);
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const currentSchema = schema[activeStep];
+
+    const [departments, setDepartments] = useState<Department[]>([]);
+    const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
 
     const { control, getValues, setValue, watch, formState: { errors }, trigger } = useForm<CollaboratorFormData>({
         resolver: yupResolver(currentSchema as any),
@@ -58,27 +74,50 @@ const CollaboratorForm: React.FC = () => {
         defaultValues: {
             name: '',
             email: '',
-
             active: true,
-            department: '',
+            departmentId: '',
+            jobTitle: '',
+            admissionDate: new Date().toISOString().split('T')[0],
+            level: 'junior',
+            managerId: '',
+            baseSalary: 0,
         }
     });
 
-    React.useEffect(() => {
+    useEffect(() => {
+        const unsubscribeDepts = subscribeToDepartments((data) => setDepartments(data));
+        const unsubscribeCollabs = subscribeToCollaborators((data) => setCollaborators(data));
+        return () => {
+            unsubscribeDepts();
+            unsubscribeCollabs();
+        }
+    }, []);
+
+    useEffect(() => {
         if (id) {
-            const fetchCollaborator = async () => {
-                const data = await getCollaborator(id);
+            const loadCollaborator = async () => {
+                let data = location.state?.collaborator;
+
+                if (!data) {
+                    data = await getCollaborator(id);
+                }
+
                 if (data) {
                     setValue('name', data.name);
                     setValue('email', data.email);
                     setValue('active', data.status === 'active');
-                    setValue('department', data.department);
 
+                    setValue('departmentId', data.departmentId || '');
+                    setValue('jobTitle', data.jobTitle || '');
+                    setValue('admissionDate', data.admissionDate || '');
+                    setValue('level', data.level || 'junior');
+                    setValue('managerId', data.managerId || '');
+                    setValue('baseSalary', data.baseSalary || 0);
                 }
             };
-            fetchCollaborator();
+            loadCollaborator();
         }
-    }, [id, setValue]);
+    }, [id, setValue, location.state]);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -91,32 +130,34 @@ const CollaboratorForm: React.FC = () => {
 
                     const formData = getValues();
                     const { active, ...data } = formData;
-
                     const statusVal = active ? 'active' : 'inactive';
 
+                    const selectedDept = departments.find(d => d.id === data.departmentId);
+                    const selectedManager = collaborators.find(c => c.id === data.managerId);
+
+                    const collaboratorData: any = {
+                        ...data,
+                        status: statusVal,
+                        departmentName: selectedDept ? selectedDept.name : '',
+                        managerName: selectedManager ? selectedManager.name : '',
+
+                    };
+
                     if (id) {
-                        const updatedData: Partial<Collaborator> = {
-                            ...data,
-                            status: statusVal,
-                        };
-                        updateCollaborator(id, updatedData).catch(err => console.error("Update failed in bg", err));
+                        await updateCollaborator(id, collaboratorData);
                     } else {
-                        const newCollaborator: Omit<Collaborator, 'id'> = {
-                            ...data,
-                            position: 'Colaborador',
-                            status: statusVal,
+                        const newCollaborator = {
+                            ...collaboratorData,
+                            id: '',
                             avatar: getRandomAvatar(data.name),
-                            admissionDate: new Date().toISOString().split('T')[0],
                             cpf: '', phone: '', cep: '', street: '', number: '', neighborhood: '', city: '', state: ''
                         };
-                        saveCollaborator(newCollaborator).catch(err => console.error("Save failed in bg", err));
+                        delete newCollaborator.id;
+                        await saveCollaborator(newCollaborator);
                     }
 
                     setActiveStep(steps.length);
-
-                    setTimeout(() => {
-                        navigate('/');
-                    }, 500);
+                    setTimeout(() => navigate('/'), 500);
                 } catch (error) {
                     console.error("Error saving collaborator:", error);
                     setIsSubmitting(false);
@@ -135,9 +176,10 @@ const CollaboratorForm: React.FC = () => {
         }
     };
 
+    const eligibleManagers = collaborators.filter(c => c.level === 'manager' && c.id !== id);
+
     return (
         <Box sx={{ p: 4 }}>
-
             <Breadcrumbs separator={<Typography sx={{ color: '#98A2B3', mx: 0.5, fontWeight: 700 }}>•</Typography>} sx={{ mb: 4 }}>
                 <Link underline="hover" color="text.secondary" onClick={() => navigate('/')} sx={{ cursor: 'pointer', fontSize: '14px', fontWeight: 600 }}>
                     Colaboradores
@@ -147,8 +189,7 @@ const CollaboratorForm: React.FC = () => {
                 </Typography>
             </Breadcrumbs>
 
-
-            <Box sx={{ position: 'relative', mb: 6, display: { xs: 'block', md: 'block' } }}>
+            <Box sx={{ position: 'relative', mb: 6 }}>
                 <LinearProgress
                     variant={isSubmitting ? "indeterminate" : "determinate"}
                     value={activeStep === steps.length ? 100 : (activeStep === 0 ? 0 : 50)}
@@ -162,25 +203,12 @@ const CollaboratorForm: React.FC = () => {
                         }
                     }}
                 />
-                <Typography
-                    variant="caption"
-                    sx={{
-                        position: 'absolute',
-                        right: -30,
-                        top: -8,
-                        color: '#98A2B3',
-                        fontWeight: 500
-                    }}
-                >
-                    {activeStep === steps.length ? '100%' : (activeStep === 0 ? '0%' : '50%')}
-                </Typography>
             </Box>
 
             <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: { xs: 4, md: 8 } }}>
-
-                <Box sx={{ display: { xs: 'none', md: 'flex' }, flexDirection: 'column', gap: 4, position: 'relative', minWidth: 200 }}>
+                <Box sx={{ display: { xs: 'none', md: 'flex' }, flexDirection: 'column', gap: 4, minWidth: 200 }}>
                     {steps.map((step, index) => (
-                        <Box key={step.label} sx={{ display: 'flex', alignItems: 'center', gap: 2, zIndex: 1 }}>
+                        <Box key={step.label} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                             <Box
                                 sx={{
                                     width: 32,
@@ -199,113 +227,49 @@ const CollaboratorForm: React.FC = () => {
                             >
                                 {index < activeStep ? <CheckIcon sx={{ fontSize: 16 }} /> : index + 1}
                             </Box>
-                            <Typography
-                                sx={{
-                                    fontSize: '14px',
-                                    fontWeight: index === activeStep ? 700 : 500,
-                                    color: index === activeStep ? '#1D2939' : '#98A2B3',
-                                }}
-                            >
+                            <Typography sx={{ fontSize: '14px', fontWeight: index === activeStep ? 700 : 500, color: index === activeStep ? '#1D2939' : '#98A2B3' }}>
                                 {step.label}
                             </Typography>
                         </Box>
                     ))}
-
-                    <Box
-                        sx={{
-                            position: 'absolute',
-                            left: 19,
-                            top: 40,
-                            bottom: 10,
-                            width: 1,
-                            bgcolor: '#F2F4F7',
-                            zIndex: 0,
-                        }}
-                    />
                 </Box>
 
-
-                <Box sx={{ flex: 1, pt: 0.5 }}>
+                <Box sx={{ flex: 1 }}>
                     <Typography variant="h4" sx={{ mb: 4, color: '#475467', fontWeight: 700, fontSize: '28px' }}>
                         {steps[Math.min(activeStep, steps.length - 1)].title}
                     </Typography>
 
-                    <Box sx={{ maxWidth: 640, width: '100%' }}>
+                    <Box sx={{ maxWidth: 640 }}>
                         {activeStep === 0 && (
                             <Box sx={{ display: 'flex', gap: 4, flexDirection: { xs: 'column', sm: 'row' } }}>
                                 <Box sx={{ display: 'flex', justifyContent: 'center', pt: 1 }}>
-                                    <Avatar
-                                        src={getRandomAvatar(watch('name'))}
-                                        sx={{ width: 100, height: 100, bgcolor: '#F2F4F7' }}
-                                    />
+                                    <Avatar src={getRandomAvatar(watch('name'))} sx={{ width: 100, height: 100, bgcolor: '#F2F4F7' }} />
                                 </Box>
                                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1 }}>
                                     <Controller
                                         name="name"
                                         control={control}
                                         render={({ field }) => (
-                                            <TextField
-                                                {...field}
-                                                label="Título"
-                                                placeholder="João da Silva"
-                                                fullWidth
-                                                error={!!errors.name}
-                                                helperText={errors.name?.message}
-                                                variant="outlined"
-                                                sx={{
-                                                    '& .MuiOutlinedInput-root': {
-                                                        borderRadius: '12px',
-                                                        '&.Mui-focused fieldset': { borderColor: '#00C247' },
-                                                    },
-                                                    '& .MuiInputLabel-root.Mui-focused': { color: '#00C247' },
-                                                }}
-                                            />
+                                            <TextField {...field} label="Nome Completo" fullWidth error={!!errors.name} helperText={errors.name?.message} variant="outlined" />
                                         )}
                                     />
                                     <Controller
                                         name="email"
                                         control={control}
                                         render={({ field }) => (
-                                            <TextField
-                                                {...field}
-                                                label="E-mail"
-                                                placeholder="e.g. john@gmail.com"
-                                                fullWidth
-                                                error={!!errors.email}
-                                                helperText={errors.email?.message}
-                                                variant="outlined"
-                                                sx={{
-                                                    '& .MuiOutlinedInput-root': {
-                                                        borderRadius: '12px',
-                                                        '&.Mui-focused fieldset': { borderColor: '#00C247' },
-                                                    },
-                                                    '& .MuiInputLabel-root.Mui-focused': { color: '#00C247' },
-                                                }}
+                                            <TextField {...field} label="E-mail" fullWidth error={!!errors.email} helperText={errors.email?.message} variant="outlined" />
+                                        )}
+                                    />
+                                    <Controller
+                                        name="active"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <FormControlLabel
+                                                control={<Switch {...field} checked={field.value} color="success" />}
+                                                label="Ativo"
                                             />
                                         )}
                                     />
-                                    <Box sx={{ mt: 1 }}>
-                                        <Controller
-                                            name="active"
-                                            control={control}
-                                            render={({ field }) => (
-                                                <FormControlLabel
-                                                    control={
-                                                        <Switch
-                                                            {...field}
-                                                            checked={field.value}
-                                                            color="success"
-                                                            sx={{
-                                                                '& .MuiSwitch-switchBase.Mui-checked': { color: '#00C247' },
-                                                                '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#00C247' },
-                                                            }}
-                                                        />
-                                                    }
-                                                    label={<Typography sx={{ fontSize: '14px', color: '#475467' }}>{id ? 'Ativo' : 'Ativar ao criar'}</Typography>}
-                                                />
-                                            )}
-                                        />
-                                    </Box>
                                 </Box>
                             </Box>
                         )}
@@ -313,63 +277,67 @@ const CollaboratorForm: React.FC = () => {
                         {activeStep === 1 && (
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                                 <Controller
-                                    name="department"
+                                    name="departmentId"
                                     control={control}
                                     render={({ field }) => (
-                                        <TextField
-                                            {...field}
-                                            select
-                                            label="Selecione um departamento"
-                                            fullWidth
-                                            error={!!errors.department}
-                                            helperText={errors.department?.message}
-                                            variant="outlined"
-                                            sx={{
-                                                '& .MuiOutlinedInput-root': {
-                                                    borderRadius: '12px',
-                                                    '&.Mui-focused fieldset': { borderColor: '#00C247' },
-                                                },
-                                                '& .MuiInputLabel-root.Mui-focused': { color: '#00C247' },
-                                            }}
-                                        >
-                                            <MenuItem value="Design">Design</MenuItem>
-                                            <MenuItem value="TI">TI</MenuItem>
-                                            <MenuItem value="Marketing">Marketing</MenuItem>
-                                            <MenuItem value="Produto">Produto</MenuItem>
+                                        <TextField {...field} select label="Departamento" fullWidth error={!!errors.departmentId} helperText={errors.departmentId?.message} variant="outlined">
+                                            {departments.map(dept => (
+                                                <MenuItem key={dept.id} value={dept.id}>{dept.name}</MenuItem>
+                                            ))}
                                         </TextField>
+                                    )}
+                                />
+                                <Controller
+                                    name="jobTitle"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <TextField {...field} label="Cargo" fullWidth error={!!errors.jobTitle} helperText={errors.jobTitle?.message} variant="outlined" />
+                                    )}
+                                />
+                                <Controller
+                                    name="level"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <TextField {...field} select label="Nível Hierárquico" fullWidth error={!!errors.level} helperText={errors.level?.message} variant="outlined">
+                                            <MenuItem value="junior">Júnior</MenuItem>
+                                            <MenuItem value="pleno">Pleno</MenuItem>
+                                            <MenuItem value="senior">Sênior</MenuItem>
+                                            <MenuItem value="manager">Gestor</MenuItem>
+                                        </TextField>
+                                    )}
+                                />
+                                <Controller
+                                    name="admissionDate"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <TextField {...field} type="date" label="Data de Admissão" InputLabelProps={{ shrink: true }} fullWidth error={!!errors.admissionDate} helperText={errors.admissionDate?.message} variant="outlined" />
+                                    )}
+                                />
+                                <Controller
+                                    name="managerId"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <TextField {...field} select label="Gestor Responsável" fullWidth error={!!errors.managerId} helperText={errors.managerId?.message} variant="outlined">
+                                            <MenuItem value="">Nenhum</MenuItem>
+                                            {eligibleManagers.map(m => (
+                                                <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
+                                            ))}
+                                        </TextField>
+                                    )}
+                                />
+                                <Controller
+                                    name="baseSalary"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <TextField {...field} type="number" label="Salário Base" fullWidth error={!!errors.baseSalary} helperText={errors.baseSalary?.message} variant="outlined" />
                                     )}
                                 />
                             </Box>
                         )}
 
-
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 10 }}>
-                            <Button
-                                onClick={handleBack}
-                                sx={{
-                                    color: '#98A2B3',
-                                    fontWeight: 700,
-                                    textTransform: 'none',
-                                    fontSize: '16px',
-                                    '&:hover': { bgcolor: 'transparent', color: '#667085' }
-                                }}
-                            >
-                                Voltar
-                            </Button>
-                            <Button
-                                onClick={handleNext}
-                                variant="contained"
-                                disabled={isSubmitting}
-                                sx={{
-                                    bgcolor: '#00C247',
-                                    borderRadius: '12px',
-                                    px: 4,
-                                    py: 1.5,
-                                    fontWeight: 700,
-                                    textTransform: 'none',
-                                    '&:hover': { bgcolor: '#00A83D' }
-                                }}
-                            >
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 10 }}>
+                            <Button onClick={handleBack} sx={{ color: '#98A2B3', fontWeight: 700 }}>Voltar</Button>
+                            <Button onClick={handleNext} variant="contained" disabled={isSubmitting} sx={{ bgcolor: '#00C247', borderRadius: '12px', fontWeight: 700, '&:hover': { bgcolor: '#00A83D' } }}>
                                 {isSubmitting ? 'Salvando...' : (activeStep === steps.length - 1 ? 'Concluir' : 'Próximo')}
                             </Button>
                         </Box>
@@ -381,4 +349,3 @@ const CollaboratorForm: React.FC = () => {
 };
 
 export default CollaboratorForm;
-

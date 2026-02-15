@@ -20,7 +20,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     };
 
     return (
-        <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#F9FAFB' }}>
+        <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden', bgcolor: '#F9FAFB' }}>
             <CssBaseline />
 
             <IconButton
@@ -47,7 +47,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     py: 4,
                     width: { sm: `calc(100% - ${drawerWidth}px)` },
                     maxWidth: '100%',
-                    mx: 'auto'
+                    mx: 'auto',
+                    overflowY: 'auto',
+                    height: '100%',
                 }}
             >
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
